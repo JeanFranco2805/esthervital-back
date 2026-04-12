@@ -3,8 +3,8 @@ Schemas seguros para Pacientes con validación completa
 Protección contra XSS, SQL Injection, datos inválidos
 """
 
-from pydantic import BaseModel, EmailStr, validator
-from typing import Optional, List
+from pydantic import BaseModel, EmailStr, validator, root_validator
+from typing import Optional, List, Dict, Any
 from datetime import date, datetime
 
 from security.InputValidator import InputValidator
@@ -29,6 +29,35 @@ class PacienteCreate(BaseModel):
     numero_identificacion: str
     estado: Optional[str] = "Activo"
 
+    @root_validator(pre=True)
+    def normalize_optional_empty_strings(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        """Convierte strings vacios en None para campos opcionales.
+
+        Esto evita errores de parseo en Optional[EmailStr]/Optional[int]/Optional[float]
+        cuando el frontend envia "".
+        """
+        if not values:
+            return values
+
+        optional_fields = {
+            "edad",
+            "peso_kg",
+            "telefono",
+            "email",
+            "direccion",
+            "ocupacion",
+            "numero_hijos",
+            "tipo_parto",
+            "estado",
+        }
+
+        for field in optional_fields:
+            value = values.get(field)
+            if isinstance(value, str) and not value.strip():
+                values[field] = None
+
+        return values
+
 
     @validator('nombre', 'apellido')
     def validate_name(cls, v):
@@ -40,7 +69,7 @@ class PacienteCreate(BaseModel):
         - SQL Injection: Robert'); DROP TABLE pacientes;--
         - Caracteres no válidos
         """
-        if not v:
+        if not v or not str(v).strip():
             raise ValueError("Campo requerido")
 
         # Validar contra inyecciones
@@ -376,6 +405,35 @@ class PacienteUpdate(BaseModel):
     numero_identificacion: Optional[str] = None
     estado: Optional[str] = None
 
+    @root_validator(pre=True)
+    def normalize_optional_empty_strings(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        if not values:
+            return values
+
+        optional_fields = {
+            "nombre",
+            "apellido",
+            "fecha_nacimiento",
+            "edad",
+            "peso_kg",
+            "telefono",
+            "email",
+            "direccion",
+            "ocupacion",
+            "numero_hijos",
+            "tipo_parto",
+            "tipo_identificacion",
+            "numero_identificacion",
+            "estado",
+        }
+
+        for field in optional_fields:
+            value = values.get(field)
+            if isinstance(value, str) and not value.strip():
+                values[field] = None
+
+        return values
+
     # ✅ REUTILIZAR VALIDADORES de PacienteCreate
     _validate_name = validator('nombre', 'apellido', allow_reuse=True)(
         PacienteCreate.validate_name.__func__
@@ -431,7 +489,7 @@ class PacienteRead(BaseModel):
     peso_kg: Optional[float]
 
     telefono: Optional[str]
-    email: Optional[EmailStr]
+    email: Optional[str]
     direccion: Optional[str]
     ocupacion: Optional[str]
 
